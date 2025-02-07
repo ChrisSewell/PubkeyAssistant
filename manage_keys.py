@@ -8,15 +8,24 @@ import json
 from datetime import datetime
 import shutil
 
+# Check for dependencies
+GIT_AVAILABLE = False
+try:
+    subprocess.run(["git", "--version"], capture_output=True, check=True)
+    GIT_AVAILABLE = True
+except (subprocess.CalledProcessError, FileNotFoundError):
+    print("Warning: Git is not installed. Some features will be limited.")
+
 # Suppress Tk deprecation warning on macOS
 os.environ['TK_SILENCE_DEPRECATION'] = '1'
 
+CLIPBOARD_AVAILABLE = False
 try:
     import tkinter as tk
     from tkinter import messagebox
     CLIPBOARD_AVAILABLE = True
 except ImportError:
-    CLIPBOARD_AVAILABLE = False
+    print("Warning: tkinter is not installed. Clipboard functionality will be limited.")
 
 class SSHKeyManager:
     def __init__(self):
@@ -27,8 +36,8 @@ class SSHKeyManager:
         self.load_keys()
         self.load_aliases()
         
-        # Check repository visibility
-        if self.check_repo_visibility():
+        # Check repository visibility only if git is available
+        if GIT_AVAILABLE and self.check_repo_visibility():
             print("\n⚠️  WARNING: This appears to be a public repository!")
             print("It is strongly recommended to keep SSH keys in a private repository.")
             print("Please consider making this repository private or using a different repository.")
@@ -180,6 +189,11 @@ class SSHKeyManager:
 
     def sync_with_git(self, message: str) -> None:
         """Sync changes with git repository."""
+        if not GIT_AVAILABLE:
+            print("Error: Git is not installed. Cannot sync changes.")
+            print("Please install git to use this feature.")
+            return
+            
         try:
             subprocess.run(["git", "add", self.keys_file], check=True)
             subprocess.run(["git", "commit", "-m", message], check=True)
@@ -573,6 +587,9 @@ class SSHKeyManager:
     def check_repo_visibility(self) -> bool:
         """Check if the git repository is public.
         Returns True if public, False if private or unable to determine."""
+        if not GIT_AVAILABLE:
+            return False  # Assume private if git is not available
+            
         try:
             # Get the remote URL
             result = subprocess.run(
@@ -615,11 +632,17 @@ def main():
         print("1. Capture public key of current device")
         print("2. Deploy public keys to current device")
         print("3. Set alias for key")
-        print("4. Sync with git")
+        if GIT_AVAILABLE:
+            print("4. Sync with git")
+        else:
+            print("4. Sync with git (Requires git installation)")
         print("5. Delete keys")
         print("6. List all keys")
         print("7. Search keys")
-        print("8. Copy key to clipboard")
+        if CLIPBOARD_AVAILABLE:
+            print("8. Copy key to clipboard")
+        else:
+            print("8. Copy key to clipboard (Requires tkinter installation)")
         print("9. Set key expiry")
         print("10. Manage system keys")
         print("11. Exit")
@@ -633,6 +656,9 @@ def main():
         elif choice == '3':
             manager.set_alias()
         elif choice == '4':
+            if not GIT_AVAILABLE:
+                print("\nError: Git is not installed. Please install git to use this feature.")
+                continue
             manager.sync_with_git("Manual sync")
         elif choice == '5':
             manager.delete_keys()
@@ -642,6 +668,9 @@ def main():
             search = input("Enter search term: ").strip()
             manager.list_keys(search)
         elif choice == '8':
+            if not CLIPBOARD_AVAILABLE:
+                print("\nError: tkinter is not installed. Please install tkinter to use clipboard functionality.")
+                continue
             manager.list_keys()
             key_num = input("\nEnter key number to copy: ").strip()
             try:
